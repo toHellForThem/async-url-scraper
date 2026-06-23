@@ -59,7 +59,9 @@ class JobService {
 
     job.status = 'cancelled';
     job.tasks.forEach(t => {
-      if (t.status === 'pending') t.status = 'cancelled';
+      if (t.status === 'pending' || t.status === 'in_progress') {
+        t.status = 'cancelled';
+      }
     });
 
     const cancelFn = this.cancelTokens.get(id);
@@ -101,21 +103,26 @@ class JobService {
     await new Promise(resolve => setTimeout(resolve, delayMs));
 
     if ((job.status as string) === 'cancelled') {
-      task.status = 'cancelled';
       return;
     }
 
     try {
       const response = await axios.head(task.url, { timeout: 10000 });
+      if ((job.status as string) === 'cancelled') return;
+      
       task.status = 'success';
       task.httpStatus = response.status;
     } catch (error: any) {
+      if ((job.status as string) === 'cancelled') return;
+      
       task.status = 'error';
       task.httpStatus = error.response?.status;
       task.errorMessage = error.message;
     } finally {
-      task.finishedAt = new Date();
-      task.duration = task.finishedAt.getTime() - task.startedAt!.getTime();
+      if ((job.status as string) !== 'cancelled') {
+        task.finishedAt = new Date();
+        task.duration = task.finishedAt.getTime() - task.startedAt!.getTime();
+      }
     }
   }
 }
